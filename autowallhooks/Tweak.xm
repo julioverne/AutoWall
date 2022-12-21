@@ -107,23 +107,85 @@ static UIImage *sizeImage(UIImage *orig, CGSize size)
     return retImage?:orig;
 }
 
+
+
+static NSString *frameworkPath(NSString *framework)
+{
+	NSString *path = @"/System/Library/PrivateFrameworks";
+	return [path stringByAppendingPathComponent:framework];
+}
+static void loadPrivateFramework(NSString *framework)
+{
+    NSBundle *bundle = [NSBundle bundleWithPath:frameworkPath(framework)];
+    [bundle load];
+}
+static void *loadFrameworkLibrary(NSString *framework)
+{
+    NSString *libraryPath = [frameworkPath(framework) stringByAppendingPathComponent:[framework stringByDeletingPathExtension]];
+    return dlopen(libraryPath.UTF8String, RTLD_LAZY);
+}
+static void callIntegerSetMethodOnTarget(SEL selector, id target, NSInteger arg2)
+{
+    NSInvocation *inv = [NSInvocation invocationWithMethodSignature:[target methodSignatureForSelector:selector]];
+    [inv setSelector:selector];
+    [inv setTarget:target];
+    [inv setArgument:&arg2 atIndex:2];
+    [inv invoke];
+}
+static void setLightAndDarkWallpaperImages(UIImage *lightImage, UIImage *darkImage, int locations)
+{
+    loadPrivateFramework(@"SpringBoardFoundation.framework");
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wundeclared-selector"
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+    
+    id SBFWallpaperOptions = NSClassFromString(@"SBFWallpaperOptions");
+    SEL initSelector = @selector(init);
+
+    id lightOptions = [[SBFWallpaperOptions alloc] performSelector:initSelector];
+    callIntegerSetMethodOnTarget(@selector(setWallpaperMode:), lightOptions, 1);
+
+    id darkOptions = [[SBFWallpaperOptions alloc] performSelector:initSelector];
+    callIntegerSetMethodOnTarget(@selector(setWallpaperMode:), darkOptions, 2);
+    
+    void *sbsUILib = loadFrameworkLibrary(@"SpringBoardUIServices.framework");
+	
+	void (*SBSUIWallpaperSetImage)(UIImage *image, NSDictionary *optionsDict, NSInteger location) = (void(*)(UIImage *, NSDictionary *, NSInteger))dlsym(sbsUILib, "SBSUIWallpaperSetImage");
+	if(SBSUIWallpaperSetImage != NULL) {
+        SBSUIWallpaperSetImage(lightImage, lightOptions, locations);
+	} else {
+		int (*_SBSUIWallpaperSetImages)(id imageDict, id optionsDict, int locations, int interfaceStyle) = (int(*)(id, id, int, int))dlsym(sbsUILib, "SBSUIWallpaperSetImages");
+		if(_SBSUIWallpaperSetImages != NULL) {
+			_SBSUIWallpaperSetImages(@{@"light": lightImage, @"dark": darkImage,}, [@{@"light": lightOptions, @"dark": darkOptions,} mutableCopy], locations, 1);
+		}
+	}
+#pragma clang diagnostic pop
+}
+
+
 static void setWallpaperForWallpaperMode(NSString* path, int wallpaperMode)
 {
 	dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
 		UIImage *rawImage = [UIImage imageWithContentsOfFile:path];
 		if(rawImage) {
 			UIImage *image = sizeImage(rawImage, CGSizeMake(screenSize.width*screenScale, screenSize.height*screenScale));
-			image = [UIImage imageWithCGImage:image.CGImage scale:rawImage.scale orientation:rawImage.imageOrientation];
-    		[[NSOperationQueue mainQueue] addOperationWithBlock:^() {
-				@try {
-					PLStaticWallpaperImageViewController *wallpaperViewController = [[PLStaticWallpaperImageViewController alloc] initWithUIImage:image];
-					wallpaperViewController.saveWallpaperData = YES;
-					int wallpaperModeSet = wallpaperMode;
-					object_setInstanceVariable(wallpaperViewController, "_wallpaperMode", *(int **)&wallpaperModeSet);
-					[wallpaperViewController _savePhoto];
-				} @catch(NSException* ex) {
-				}
-    		}];
+			image = [[UIImage imageWithCGImage:image.CGImage scale:rawImage.scale orientation:rawImage.imageOrientation] copy];
+    		
+			if(%c(PLStaticWallpaperImageViewController)!= nil) {
+				[[NSOperationQueue mainQueue] addOperationWithBlock:^() {
+					@try {
+						PLStaticWallpaperImageViewController *wallpaperViewController = [[%c(PLStaticWallpaperImageViewController) alloc] initWithUIImage:image];
+						wallpaperViewController.saveWallpaperData = YES;
+						int wallpaperModeSet = wallpaperMode;
+						object_setInstanceVariable(wallpaperViewController, "_wallpaperMode", *(int **)&wallpaperModeSet);
+						[wallpaperViewController _savePhoto];
+					} @catch(NSException* ex) {
+					}
+				}];
+			} else {
+				setLightAndDarkWallpaperImages(image, image, 3-wallpaperMode);
+			}
 		}
     });
 }
@@ -258,8 +320,8 @@ static void adjustCurrentWall()
 		isLaunched = YES;
 		screenChanged(NULL, NULL, NULL, NULL, NULL);
 	}];
-	CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, screenDisplayStatus, CFSTR("com.apple.iokit.hid.displayStatus"), NULL, 0);
-	CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, screenChanged, CFSTR("com.apple.springboard.screenchanged"), NULL, 0);
+	CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, screenDisplayStatus, CFSTR("com.apple.iokit.hid.displayStatus"), NULL, (CFNotificationSuspensionBehavior)0);
+	CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, screenChanged, CFSTR("com.apple.springboard.screenchanged"), NULL, (CFNotificationSuspensionBehavior)0);
 	CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL, settingsChanged, CFSTR("com.julioverne.autowall/Settings"), NULL, CFNotificationSuspensionBehaviorCoalesce);
 	settingsChanged(NULL, NULL, NULL, NULL, NULL);
 	%init;

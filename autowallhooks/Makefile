@@ -2,14 +2,13 @@ include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = AutoWall
 
-AutoWall_FILES = /mnt/d/codes/autowall/autowallhooks/Tweak.xm
-AutoWall_FRAMEWORKS = CydiaSubstrate UIKit CoreGraphics
-AutoWall_PRIVATE_FRAMEWORKS = PhotoLibrary SpringBoardFoundation
-AutoWall_LDFLAGS = -Wl,-segalign,4000
+$(TWEAK_NAME)_FILES = /mnt/d/codes/autowall/autowallhooks/Tweak.xm
 
-export ARCHS = armv7 arm64
-AutoWall_ARCHS = armv7 arm64
+$(TWEAK_NAME)_FRAMEWORKS = CydiaSubstrate UIKit CoreGraphics
+$(TWEAK_NAME)_PRIVATE_FRAMEWORKS = PhotoLibrary SpringBoardFoundation
+$(TWEAK_NAME)_LDFLAGS = -Wl,-segalign,4000
+
+export ARCHS = armv7 armv7s arm64 arm64e
+$(TWEAK_NAME)_ARCHS = armv7 armv7s arm64 arm64e
 
 include $(THEOS_MAKE_PATH)/tweak.mk
-	
-all::

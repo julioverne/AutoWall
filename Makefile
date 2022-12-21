@@ -4,6 +4,3 @@ SUBPROJECTS += autowallhooks
 SUBPROJECTS += autowallsettings
 
 include $(THEOS_MAKE_PATH)/aggregate.mk
-
-all::
-	

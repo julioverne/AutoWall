@@ -81,7 +81,7 @@
 		[spec setProperty:[UIImage imageWithContentsOfFile:[[self bundle] pathForResource:@"twitter" ofType:@"png"]] forKey:@"iconImage"];
         [specifiers addObject:spec];
 		spec = [PSSpecifier emptyGroupSpecifier];
-        [spec setProperty:@"AutoWall © 2018" forKey:@"footerText"];
+        [spec setProperty:@"AutoWall © 2021" forKey:@"footerText"];
         [specifiers addObject:spec];
 		_specifiers = [specifiers copy];
 	}
@@ -134,9 +134,28 @@
 		[CydiaEnablePrefsCheck writeToFile:@PLIST_PATH_Settings atomically:YES];
 		notify_post("com.julioverne.autowall/Settings");
 		if ([[specifier properties] objectForKey:@"PromptRespring"]) {
-			UIAlertView *alert = [[UIAlertView alloc] initWithTitle:self.title message:@"An Respring is Requerid for this option." delegate:self cancelButtonTitle:@"Cancel" otherButtonTitles:@"Respring", nil];
-			alert.tag = 55;
-			[alert show];
+			
+			if(objc_getClass("UIAlertController") != nil) {
+				
+				UIAlertController *alert = [objc_getClass("UIAlertController") alertControllerWithTitle:self.title message:@"An Respring is Requerid for this option." preferredStyle:UIAlertControllerStyleAlert];
+				
+				UIAlertAction* Action2 = [objc_getClass("UIAlertAction") actionWithTitle:@"Respring" style:UIAlertActionStyleDefault handler:^(UIAlertAction * action) {
+					system("killall backboardd SpringBoard");
+				}];
+				[alert addAction:Action2];
+				
+				UIAlertAction *cancel = [objc_getClass("UIAlertAction") actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil];
+				[alert addAction:cancel];
+				[self presentViewController:alert animated:YES completion:nil];
+				
+			} else {
+				
+				UIAlertView *alert = [[objc_getClass("UIAlertView") alloc] initWithTitle:self.title message:@"An Respring is Requerid for this option." delegate:self cancelButtonTitle:@"Cancel" otherButtonTitles:@"Respring", nil];
+				alert.tag = 55;
+				[alert show];
+				
+			}
+			
 		}
 	}
 }
@@ -172,7 +191,7 @@
 		_label.font = [UIFont fontWithName:@"HelveticaNeue-UltraLight" size:48];
 		[_label setText:self.title];
 		[_label setBackgroundColor:[UIColor clearColor]];
-		_label.textColor = [UIColor blackColor];
+		//_label.textColor = [UIColor blackColor];
 		_label.textAlignment = NSTextAlignmentCenter;
 		_label.alpha = 0;
 
@@ -297,23 +316,9 @@
         [self alertForImage];
     }];
 }
-- (void)alertForImage
-{
-	UIAlertView *alert = [[UIAlertView alloc] initWithTitle:self.title message:@"Choose Time:" delegate:self cancelButtonTitle:@"Cancel" otherButtonTitles:@"LockSreen + HomeScreen", @"HomeScreen", @"LockSreen", nil];
-	
-	datePickerSel = [[UIDatePicker alloc] initWithFrame:CGRectMake(0, 0, 200, 200)];
-	datePickerSel.datePickerMode = UIDatePickerModeTime;
-	[alert setValue:datePickerSel forKey:@"accessoryView"];
-	
-	[alert show];
-}
 
-- (void)alertView:(UIAlertView *)alertView clickedButtonAtIndex:(NSInteger)buttonIndex
+- (void)saveWallWithMode:(int)buttonIndex
 {
-	if(buttonIndex == [alertView cancelButtonIndex]) {
-		imageSel = nil;
-		return;
-	}
 	NSDateFormatter* formatter = [[NSDateFormatter alloc]init];
     [formatter setDateFormat:@"HH:mm:ss"];
 	//formatter.timeZone = [NSTimeZone timeZoneForSecondsFromGMT:0];
@@ -321,6 +326,17 @@
 	
 	NSDictionary *TweakPrefs = [[[NSDictionary alloc] initWithContentsOfFile:@PLIST_PATH_Settings]?:[NSDictionary dictionary] copy];
 	NSMutableArray* wallArrMut = (NSMutableArray*)[[TweakPrefs objectForKey:@"wallArr"]?:@[] mutableCopy];
+	
+	id removeWallDic = nil;
+	for(NSDictionary* wallNow in wallArrMut) {
+		if([pathSel isEqualToString:wallNow[@"path"]]) {
+			removeWallDic = wallNow;
+			break;
+		}
+	}
+	if(removeWallDic) {
+		[wallArrMut removeObject:removeWallDic];
+	}
 	
 	[wallArrMut addObject:@{@"path": pathSel, @"mode": @(buttonIndex-1), @"time": timeSel,}];
 	
@@ -339,12 +355,62 @@
 	[self Refresh];
 }
 
+- (void)alertForImage
+{
+	datePickerSel = [[UIDatePicker alloc] initWithFrame:CGRectMake(0, 0, 200, 200)];
+	datePickerSel.datePickerMode = UIDatePickerModeTime;
+	
+	if(objc_getClass("UIAlertController") != nil) {
+		
+		UIAlertController *alert = [objc_getClass("UIAlertController") alertControllerWithTitle:self.title message:@"Choose Time:" preferredStyle:UIAlertControllerStyleAlert];
+		
+		[alert addTextFieldWithConfigurationHandler:^(UITextField *textField) {
+			textField.hidden = YES;
+			textField.inputView = datePickerSel;
+		}];
+		
+		UIAlertAction* Action1 = [objc_getClass("UIAlertAction") actionWithTitle:@"LockSreen + HomeScreen" style:UIAlertActionStyleDefault handler:^(UIAlertAction * action) {
+			[self saveWallWithMode:1];
+		}];
+		[alert addAction:Action1];
+		
+		UIAlertAction* Action2 = [objc_getClass("UIAlertAction") actionWithTitle:@"HomeScreen" style:UIAlertActionStyleDefault handler:^(UIAlertAction * action) {
+			[self saveWallWithMode:2];
+		}];
+		[alert addAction:Action2];
+		
+		UIAlertAction* Action3 = [objc_getClass("UIAlertAction") actionWithTitle:@"LockSreen" style:UIAlertActionStyleDefault handler:^(UIAlertAction * action) {
+			[self saveWallWithMode:3];
+		}];
+		[alert addAction:Action3];
+		
+		UIAlertAction *cancel = [objc_getClass("UIAlertAction") actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil];
+		[alert addAction:cancel];
+		[self presentViewController:alert animated:YES completion:nil];
+		
+	} else {
+		UIAlertView *alert = [[objc_getClass("UIAlertView") alloc] initWithTitle:self.title message:@"Choose Time:" delegate:self cancelButtonTitle:@"Cancel" otherButtonTitles:@"LockSreen + HomeScreen", @"HomeScreen", @"LockSreen", nil];
+		
+		[alert setValue:datePickerSel forKey:@"accessoryView"];
+		
+		[alert show];
+	}
+}
+
+- (void)alertView:(UIAlertView *)alertView clickedButtonAtIndex:(NSInteger)buttonIndex
+{
+	if(buttonIndex == [alertView cancelButtonIndex]) {
+		imageSel = nil;
+		return;
+	}
+	[self saveWallWithMode:buttonIndex];
+}
+
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
-	static __strong NSString* simpleTableIdentifier = @"CellWall";
-	UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:simpleTableIdentifier];
-	if (cell == nil) {
-		cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:simpleTableIdentifier];
+	UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"CellWall"];
+	if(cell == nil) {
+		cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:@"CellWall"];
 	}
 	cell.accessoryType = UITableViewCellAccessoryNone;
 	[cell setSelectionStyle:UITableViewCellSelectionStyleNone];
@@ -352,7 +418,7 @@
 	cell.imageView.image = nil;
 	cell.textLabel.text = nil;
 	cell.detailTextLabel.text = nil;
-	cell.textLabel.textColor = [UIColor blackColor];
+	//cell.textLabel.textColor = [UIColor blackColor];
 	
 	NSDictionary* wallDic = wallArr[indexPath.row];
 	int mode = [wallDic[@"mode"] intValue];
@@ -381,6 +447,24 @@
 		[self Refresh];
 	}
 }
+
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath
+{
+	[tableView deselectRowAtIndexPath:indexPath animated:NO];
+	
+	NSDictionary* wallDic = wallArr[indexPath.row];
+	pathSel = wallDic[@"path"];
+	[self alertForImage];
+	
+	static NSDateFormatter *formatter;
+	if(!formatter || ![formatter isKindOfClass:[NSDateFormatter class]]) {
+		formatter = [[NSDateFormatter alloc] init];
+		formatter.dateFormat = @"HH:mm:ss";
+	}
+	datePickerSel.date = [formatter dateFromString:wallDic[@"time"]];
+}
+
+
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section
 {
 	return @"Scheduled Wallpapers";
